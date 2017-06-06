@@ -10,7 +10,7 @@
 #import <GPUImage/GPUImageFramework.h>
 #import <AssetsLibrary/AssetsLibrary.h>
 
-@interface ViewController ()
+@interface ViewController () <UIPickerViewDataSource, UIPickerViewDelegate>
 
 @property(strong, nonatomic) GPUImageStillCamera *mCamera;
 @property(strong, nonatomic) GPUImageFilter *mFilter;
@@ -24,53 +24,26 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     [self loadAllFilters];
-    // Do any additional setup after loading the view, typically from a nib.
-    //步骤--------------1
-    //第一个参数表示相片的尺寸，第二个参数表示前、后摄像头
     _mCamera = [[GPUImageStillCamera alloc] initWithSessionPreset:AVCaptureSessionPreset640x480 cameraPosition:AVCaptureDevicePositionFront];
-    //竖屏方向
     _mCamera.outputImageOrientation = UIInterfaceOrientationPortrait;
-    
-    //步骤--------------2
-    //这个滤镜你可以换其它的，官方给出了不少滤镜
-    Class filterClass = NSClassFromString(_mAllFilters[1]);
+    Class filterClass = NSClassFromString(_mAllFilters[0]);
     _mFilter = [[filterClass alloc] init];
-    //步骤--------------3
-    _mGPUImgView = [[GPUImageView alloc]initWithFrame:self.view.bounds];
-    //步骤--------------4
+    CGRect viewRect = self.view.bounds;
+    viewRect.size.width = self.view.bounds.size.width*2/3;
+    viewRect.size.height = self.view.bounds.size.height/2;
+    viewRect.origin.x = (self.view.bounds.size.width - viewRect.size.width)/2;
+    viewRect.origin.y = 40;
+    _mGPUImgView = [[GPUImageView alloc]initWithFrame:viewRect];
     [_mCamera addTarget:_mFilter];
     [_mFilter addTarget:_mGPUImgView];
-    //步骤--------------5
-    [self.view addSubview:_mGPUImgView];
-    //步骤--------------6
     [_mCamera startCameraCapture];
+    [self.view addSubview:_mGPUImgView];
     
-    //添加一个按钮触发拍照
-    UIButton *btn = [[UIButton alloc]initWithFrame:CGRectMake((self.view.bounds.size.width-80)*0.5, self.view.bounds.size.height-60, 80, 40)];
-    btn.backgroundColor = [UIColor blueColor];
-    [btn setTitle:@"capture" forState:UIControlStateNormal];
-    
-    [self.view addSubview:btn];
-    [btn addTarget:self action:@selector(takePhoto) forControlEvents:UIControlEventTouchUpInside];
-}
-
--(void)takePhoto{
-    //步骤--------------7
-    [_mCamera capturePhotoAsJPEGProcessedUpToFilter:_mFilter withCompletionHandler:^(NSData *processedJPEG, NSError *error){
-        //将相片保存到手机相册（iOS8及以上，该方法过期但是可以用，不想用请搜索PhotoKit）
-        ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];
-        
-        [library writeImageDataToSavedPhotosAlbum:processedJPEG metadata:_mCamera.currentCaptureMetadata completionBlock:^(NSURL *assetURL, NSError *error2)
-         {
-             if (error2) {
-                 NSLog(@"ERROR: the image failed to be written");
-             }
-             else {
-                 NSLog(@"PHOTO SAVED - assetURL: %@", assetURL);
-             }
-             
-         }];
-    }];
+    UIPickerView* picker = [[UIPickerView alloc]initWithFrame:CGRectMake(20, self.view.bounds.size.height-140, self.view.bounds.size.width-40, 120)];
+    [self.view addSubview:picker];
+    picker.delegate = self;
+    picker.dataSource = self;
+    [picker selectedRowInComponent:0];
 }
 
 -(void)loadAllFilters{
@@ -211,4 +184,59 @@
                     @"GPUImageiOSBlurFilter",
                     nil];
 }
+
+// returns the number of 'columns' to display.
+- (NSInteger)numberOfComponentsInPickerView:(UIPickerView *)pickerView
+{
+    return 1;
+}
+
+// returns the # of rows in each component..
+- (NSInteger)pickerView:(UIPickerView *)pickerView numberOfRowsInComponent:(NSInteger)component
+{
+    return [_mAllFilters count];
+}
+
+// returns width of column and height of row for each component.
+- (CGFloat)pickerView:(UIPickerView *)pickerView widthForComponent:(NSInteger)component
+{
+    return pickerView.bounds.size.width - 10;
+}
+
+- (CGFloat)pickerView:(UIPickerView *)pickerView rowHeightForComponent:(NSInteger)component
+{
+    return 40;
+}
+
+- (UIView *)pickerView:(UIPickerView *)pickerView viewForRow:(NSInteger)row forComponent:(NSInteger)component reusingView:(UIView *)view
+{
+    UILabel* pickerLabel = (UILabel*)view;
+    
+    if (!pickerLabel)
+    {
+        pickerLabel = [[UILabel alloc] init];
+        
+        pickerLabel.font = [UIFont fontWithName:@"SourceSansPro-Semibold" size:18];
+        
+        pickerLabel.textAlignment=NSTextAlignmentCenter;
+    }
+    [pickerLabel setText:[_mAllFilters objectAtIndex:row]];
+    
+    return pickerLabel;
+}
+
+- (void)pickerView:(UIPickerView *)pickerView didSelectRow:(NSInteger)row inComponent:(NSInteger)component
+{
+    [_mCamera stopCameraCapture];
+    [_mCamera removeAllTargets];
+    if (_mFilter) {
+        [_mFilter removeAllTargets];
+    }
+    Class filterClass = NSClassFromString(_mAllFilters[row]);
+    _mFilter = [[filterClass alloc] init];
+    [_mCamera addTarget:_mFilter];
+    [_mFilter addTarget:_mGPUImgView];
+    [_mCamera startCameraCapture];
+}
+
 @end
